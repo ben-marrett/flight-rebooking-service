@@ -4,9 +4,11 @@ import com.example.flightrebooking.dto.FlightResponse;
 import com.example.flightrebooking.dto.RebookingOptionResponse;
 import com.example.flightrebooking.dto.RebookingOptionsResponse;
 import com.example.flightrebooking.dto.RebookResponse;
+import com.example.flightrebooking.dto.RebookResult;
 import com.example.flightrebooking.entity.*;
 import com.example.flightrebooking.exception.BookingNotEligibleException;
 import com.example.flightrebooking.exception.BookingNotFoundException;
+import com.example.flightrebooking.exception.IdempotencyKeyReusedException;
 import com.example.flightrebooking.exception.InvalidFlightSelectionException;
 import com.example.flightrebooking.repository.BookingRepository;
 import com.example.flightrebooking.repository.FlightRepository;
@@ -161,7 +163,20 @@ public class RebookingService {
     }
 
     @Transactional
-    public RebookResponse rebook(String reference, String selectedFlightId, UUID idempotencyKey) {
+    public RebookResult rebook(String reference, String selectedFlightId, UUID idempotencyKey) {
+        // Check for existing idempotency key
+        var existingAudit = auditRepository.findByIdempotencyKey(idempotencyKey);
+        if (existingAudit.isPresent()) {
+            RebookingAudit audit = existingAudit.get();
+            // Check if it's for the same booking
+            if (!audit.getBooking().getReference().equals(reference)) {
+                throw new IdempotencyKeyReusedException(idempotencyKey);
+            }
+            // Return stored response (replay)
+            RebookResponse storedResponse = deserializeResponse(audit.getResponsePayload());
+            return RebookResult.replay(storedResponse);
+        }
+
         Booking booking = bookingRepository.findByReferenceWithDetails(reference)
             .orElseThrow(() -> new BookingNotFoundException(reference));
 
@@ -214,7 +229,7 @@ public class RebookingService {
         );
         auditRepository.save(audit);
 
-        return response;
+        return RebookResult.newRebook(response);
     }
 
     private String serializeResponse(RebookResponse response) {
@@ -222,6 +237,14 @@ public class RebookingService {
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException e) {
             return "{}";
+        }
+    }
+
+    private RebookResponse deserializeResponse(String json) {
+        try {
+            return objectMapper.readValue(json, RebookResponse.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to deserialize stored response", e);
         }
     }
 }

@@ -2,7 +2,7 @@ package com.example.flightrebooking.controller;
 
 import com.example.flightrebooking.dto.BookingResponse;
 import com.example.flightrebooking.dto.RebookRequest;
-import com.example.flightrebooking.dto.RebookResponse;
+import com.example.flightrebooking.dto.RebookResult;
 import com.example.flightrebooking.dto.RebookingOptionsResponse;
 import com.example.flightrebooking.entity.Booking;
 import com.example.flightrebooking.exception.BookingNotFoundException;
@@ -89,12 +89,13 @@ public class BookingController {
             return ResponseEntity.badRequest().body(problem);
         }
 
-        RebookResponse response = rebookingService.rebook(
+        RebookResult result = rebookingService.rebook(
             ref,
             request.selectedFlightId(),
             idempotencyKey
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        HttpStatus status = result.isReplay() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(result.response());
     }
 }

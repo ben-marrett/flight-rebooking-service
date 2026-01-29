@@ -54,6 +54,16 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    public ProblemDetail handleIdempotencyKeyReused(IdempotencyKeyReusedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            ex.getMessage()
+        );
+        problem.setTitle("Bad Request");
+        return problem;
+    }
+
     @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValid(
             org.springframework.web.bind.MethodArgumentNotValidException ex) {
