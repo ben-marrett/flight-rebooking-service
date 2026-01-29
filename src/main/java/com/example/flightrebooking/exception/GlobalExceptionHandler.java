@@ -79,4 +79,35 @@ public class GlobalExceptionHandler {
         problem.setTitle("Bad Request");
         return problem;
     }
+
+    @ExceptionHandler(AlreadyRebookedException.class)
+    public ProblemDetail handleAlreadyRebooked(AlreadyRebookedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            ex.getMessage()
+        );
+        problem.setTitle("Conflict");
+        return problem;
+    }
+
+    @ExceptionHandler({OptimisticLockConflictException.class, ETagMismatchException.class})
+    public ProblemDetail handleOptimisticLock(RuntimeException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            ex.getMessage()
+        );
+        problem.setTitle("Conflict");
+        return problem;
+    }
+
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleJpaOptimisticLock(
+            org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            "Booking was modified by another request; please retry"
+        );
+        problem.setTitle("Conflict");
+        return problem;
+    }
 }

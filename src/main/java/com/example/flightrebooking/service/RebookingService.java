@@ -6,8 +6,10 @@ import com.example.flightrebooking.dto.RebookingOptionsResponse;
 import com.example.flightrebooking.dto.RebookResponse;
 import com.example.flightrebooking.dto.RebookResult;
 import com.example.flightrebooking.entity.*;
+import com.example.flightrebooking.exception.AlreadyRebookedException;
 import com.example.flightrebooking.exception.BookingNotEligibleException;
 import com.example.flightrebooking.exception.BookingNotFoundException;
+import com.example.flightrebooking.exception.ETagMismatchException;
 import com.example.flightrebooking.exception.IdempotencyKeyReusedException;
 import com.example.flightrebooking.exception.InvalidFlightSelectionException;
 import com.example.flightrebooking.repository.BookingRepository;
@@ -163,7 +165,7 @@ public class RebookingService {
     }
 
     @Transactional
-    public RebookResult rebook(String reference, String selectedFlightId, UUID idempotencyKey) {
+    public RebookResult rebook(String reference, String selectedFlightId, UUID idempotencyKey, Long expectedVersion) {
         // Check for existing idempotency key
         var existingAudit = auditRepository.findByIdempotencyKey(idempotencyKey);
         if (existingAudit.isPresent()) {
@@ -180,6 +182,14 @@ public class RebookingService {
         Booking booking = bookingRepository.findByReferenceWithDetails(reference)
             .orElseThrow(() -> new BookingNotFoundException(reference));
 
+        // Check If-Match header for optimistic concurrency
+        if (expectedVersion != null && !expectedVersion.equals(booking.getVersion())) {
+            throw new ETagMismatchException();
+        }
+
+        if (booking.getStatus() == BookingStatus.REBOOKED) {
+            throw new AlreadyRebookedException(reference);
+        }
         if (booking.getStatus() != BookingStatus.DISRUPTED) {
             throw new BookingNotEligibleException(reference, booking.getStatus());
         }

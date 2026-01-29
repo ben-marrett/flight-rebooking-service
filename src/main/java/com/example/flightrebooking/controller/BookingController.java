@@ -6,6 +6,7 @@ import com.example.flightrebooking.dto.RebookResult;
 import com.example.flightrebooking.dto.RebookingOptionsResponse;
 import com.example.flightrebooking.entity.Booking;
 import com.example.flightrebooking.exception.BookingNotFoundException;
+import com.example.flightrebooking.exception.ETagMismatchException;
 import com.example.flightrebooking.repository.BookingRepository;
 import com.example.flightrebooking.service.RebookingService;
 import jakarta.validation.Valid;
@@ -65,6 +66,7 @@ public class BookingController {
             @Pattern(regexp = BOOKING_REF_PATTERN, message = BOOKING_REF_MESSAGE)
             String ref,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKeyHeader,
+            @RequestHeader(value = "If-Match", required = false) String ifMatchHeader,
             @Valid @RequestBody RebookRequest request) {
 
         // Validate idempotency key
@@ -89,10 +91,22 @@ public class BookingController {
             return ResponseEntity.badRequest().body(problem);
         }
 
+        // Parse If-Match header (optional)
+        Long expectedVersion = null;
+        if (ifMatchHeader != null && !ifMatchHeader.isBlank()) {
+            String versionStr = ifMatchHeader.replace("\"", "");
+            try {
+                expectedVersion = Long.parseLong(versionStr);
+            } catch (NumberFormatException e) {
+                // Invalid format, ignore
+            }
+        }
+
         RebookResult result = rebookingService.rebook(
             ref,
             request.selectedFlightId(),
-            idempotencyKey
+            idempotencyKey,
+            expectedVersion
         );
 
         HttpStatus status = result.isReplay() ? HttpStatus.OK : HttpStatus.CREATED;
