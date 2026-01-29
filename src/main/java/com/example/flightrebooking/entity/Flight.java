@@ -29,7 +29,6 @@ public class Flight {
 
     public Flight() {}
 
-    // For testing
     public void setId(UUID id) { this.id = id; }
     public void setFlightNumber(String flightNumber) { this.flightNumber = flightNumber; }
     public void setOrigin(String origin) { this.origin = origin; }
