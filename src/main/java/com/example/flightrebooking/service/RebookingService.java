@@ -3,19 +3,23 @@ package com.example.flightrebooking.service;
 import com.example.flightrebooking.dto.FlightResponse;
 import com.example.flightrebooking.dto.RebookingOptionResponse;
 import com.example.flightrebooking.dto.RebookingOptionsResponse;
-import com.example.flightrebooking.entity.Booking;
-import com.example.flightrebooking.entity.BookingStatus;
-import com.example.flightrebooking.entity.Flight;
+import com.example.flightrebooking.dto.RebookResponse;
+import com.example.flightrebooking.entity.*;
 import com.example.flightrebooking.exception.BookingNotEligibleException;
 import com.example.flightrebooking.exception.BookingNotFoundException;
+import com.example.flightrebooking.exception.InvalidFlightSelectionException;
 import com.example.flightrebooking.repository.BookingRepository;
 import com.example.flightrebooking.repository.FlightRepository;
+import com.example.flightrebooking.repository.RebookingAuditRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class RebookingService {
@@ -24,10 +28,17 @@ public class RebookingService {
 
     private final BookingRepository bookingRepository;
     private final FlightRepository flightRepository;
+    private final RebookingAuditRepository auditRepository;
+    private final ObjectMapper objectMapper;
 
-    public RebookingService(BookingRepository bookingRepository, FlightRepository flightRepository) {
+    public RebookingService(BookingRepository bookingRepository,
+                           FlightRepository flightRepository,
+                           RebookingAuditRepository auditRepository,
+                           ObjectMapper objectMapper) {
         this.bookingRepository = bookingRepository;
         this.flightRepository = flightRepository;
+        this.auditRepository = auditRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -147,5 +158,70 @@ public class RebookingService {
 
     private LocalTime toLocalTime(Instant instant) {
         return instant.atZone(ZoneOffset.UTC).toLocalTime();
+    }
+
+    @Transactional
+    public RebookResponse rebook(String reference, String selectedFlightId, UUID idempotencyKey) {
+        Booking booking = bookingRepository.findByReferenceWithDetails(reference)
+            .orElseThrow(() -> new BookingNotFoundException(reference));
+
+        if (booking.getStatus() != BookingStatus.DISRUPTED) {
+            throw new BookingNotEligibleException(reference, booking.getStatus());
+        }
+
+        // Validate selected flight is a valid option
+        RebookingOptionsResponse options = getRebookingOptions(reference);
+        boolean validSelection = options.options().stream()
+            .anyMatch(opt -> opt.flight().flightId().equals(selectedFlightId));
+
+        if (!validSelection) {
+            throw new InvalidFlightSelectionException(selectedFlightId);
+        }
+
+        // Find the new flight
+        UUID newFlightId = UUID.fromString(selectedFlightId);
+        Flight newFlight = flightRepository.findById(newFlightId)
+            .orElseThrow(() -> new InvalidFlightSelectionException(selectedFlightId));
+
+        Flight previousFlight = booking.getOriginalFlight();
+        Instant rebookedAt = Instant.now();
+
+        // Update booking
+        booking.setStatus(BookingStatus.REBOOKED);
+        booking.setRebookedFlight(newFlight);
+        booking.setUpdatedAt(rebookedAt);
+        bookingRepository.save(booking);
+
+        // Create response
+        RebookResponse response = new RebookResponse(
+            booking.getReference(),
+            BookingStatus.REBOOKED.name(),
+            FlightResponse.from(previousFlight),
+            FlightResponse.from(newFlight),
+            rebookedAt
+        );
+
+        // Create audit record
+        String responseJson = serializeResponse(response);
+        RebookingAudit audit = new RebookingAudit(
+            UUID.randomUUID(),
+            booking,
+            idempotencyKey,
+            previousFlight,
+            newFlight,
+            RebookingOutcome.SUCCESS,
+            responseJson
+        );
+        auditRepository.save(audit);
+
+        return response;
+    }
+
+    private String serializeResponse(RebookResponse response) {
+        try {
+            return objectMapper.writeValueAsString(response);
+        } catch (JsonProcessingException e) {
+            return "{}";
+        }
     }
 }

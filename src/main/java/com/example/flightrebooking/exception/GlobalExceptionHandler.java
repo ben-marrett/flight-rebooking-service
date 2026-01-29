@@ -43,4 +43,30 @@ public class GlobalExceptionHandler {
         problem.setTitle("Bad Request");
         return problem;
     }
+
+    @ExceptionHandler(InvalidFlightSelectionException.class)
+    public ProblemDetail handleInvalidFlightSelection(InvalidFlightSelectionException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            ex.getMessage()
+        );
+        problem.setTitle("Bad Request");
+        return problem;
+    }
+
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    public ProblemDetail handleMethodArgumentNotValid(
+            org.springframework.web.bind.MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+            .map(e -> e.getDefaultMessage())
+            .findFirst()
+            .orElse("Validation failed");
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            message
+        );
+        problem.setTitle("Bad Request");
+        return problem;
+    }
 }
