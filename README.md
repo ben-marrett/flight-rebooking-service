@@ -185,6 +185,13 @@ Options are computed on-demand and scored based on:
 ./gradlew test
 ```
 
+**macOS with Colima:** If using Colima instead of Docker Desktop, set:
+```bash
+export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+./gradlew test
+```
+
 ## Domain Simplifications
 
 This service intentionally omits:
