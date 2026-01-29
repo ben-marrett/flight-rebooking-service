@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: flight-rebooking-service-test
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+logging:
+  level:
+    org.testcontainers: INFO
+    com.example.flightrebooking: DEBUG

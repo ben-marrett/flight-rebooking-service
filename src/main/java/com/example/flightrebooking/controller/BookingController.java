@@ -2,13 +2,19 @@ package com.example.flightrebooking.controller;
 
 import com.example.flightrebooking.dto.BookingResponse;
 import com.example.flightrebooking.dto.RebookRequest;
+import com.example.flightrebooking.dto.RebookResponse;
 import com.example.flightrebooking.dto.RebookResult;
 import com.example.flightrebooking.dto.RebookingOptionsResponse;
 import com.example.flightrebooking.entity.Booking;
 import com.example.flightrebooking.exception.BookingNotFoundException;
-import com.example.flightrebooking.exception.ETagMismatchException;
 import com.example.flightrebooking.repository.BookingRepository;
 import com.example.flightrebooking.service.RebookingService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.http.HttpStatus;
@@ -22,6 +28,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/bookings")
 @Validated
+@Tag(name = "Bookings", description = "Flight booking management and rebooking operations")
 public class BookingController {
 
     private static final String BOOKING_REF_PATTERN = "^[A-Z0-9-]{3,20}$";
@@ -60,6 +67,17 @@ public class BookingController {
         return rebookingService.getRebookingOptions(ref);
     }
 
+    @Operation(summary = "Rebook a disrupted flight", description = "Confirms rebooking to a selected flight. Idempotent via Idempotency-Key header.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Successfully rebooked",
+                     content = @Content(schema = @Schema(implementation = RebookResponse.class))),
+        @ApiResponse(responseCode = "200", description = "Idempotent replay - already processed",
+                     content = @Content(schema = @Schema(implementation = RebookResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request",
+                     content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "409", description = "Conflict - booking not eligible or already rebooked",
+                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
     @PostMapping("/{ref}/rebook")
     public ResponseEntity<?> rebook(
             @PathVariable("ref")

@@ -27,7 +27,14 @@ public class Flight {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected Flight() {}
+    public Flight() {}
+
+    // For testing
+    public void setId(UUID id) { this.id = id; }
+    public void setFlightNumber(String flightNumber) { this.flightNumber = flightNumber; }
+    public void setOrigin(String origin) { this.origin = origin; }
+    public void setDestination(String destination) { this.destination = destination; }
+    public void setScheduledDeparture(Instant scheduledDeparture) { this.scheduledDeparture = scheduledDeparture; }
 
     public UUID getId() {
         return id;
