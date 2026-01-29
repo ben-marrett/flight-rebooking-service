@@ -17,10 +17,12 @@ import com.example.flightrebooking.repository.FlightRepository;
 import com.example.flightrebooking.repository.RebookingAuditRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -59,10 +61,16 @@ public class RebookingService {
             ? booking.getDisruption().getOccurredAt()
             : originalFlight.getScheduledDeparture();
 
+        // Search for flights departing after both the disruption AND the original departure
+        // This prevents offering flights earlier than the original booking
+        Instant searchAfter = disruptionTime.isAfter(originalFlight.getScheduledDeparture())
+            ? disruptionTime
+            : originalFlight.getScheduledDeparture();
+
         List<Flight> availableFlights = flightRepository.findAvailableFlights(
             originalFlight.getOrigin(),
             originalFlight.getDestination(),
-            disruptionTime
+            searchAfter
         );
 
         List<RebookingOptionResponse> options = availableFlights.stream()
@@ -129,7 +137,7 @@ public class RebookingService {
         LocalDate candidateDate = toLocalDate(candidate.getScheduledDeparture());
         LocalTime candidateTime = toLocalTime(candidate.getScheduledDeparture());
 
-        long daysDiff = Period.between(originalDate, candidateDate).getDays();
+        long daysDiff = ChronoUnit.DAYS.between(originalDate, candidateDate);
         long hoursDiff = Duration.between(
             original.getScheduledDeparture(),
             candidate.getScheduledDeparture()
@@ -237,16 +245,29 @@ public class RebookingService {
             RebookingOutcome.SUCCESS,
             responseJson
         );
-        auditRepository.save(audit);
 
-        return RebookResult.newRebook(response);
+        try {
+            auditRepository.save(audit);
+            return RebookResult.newRebook(response);
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent request with same idempotency key won the race
+            // Re-fetch and return stored response as replay
+            return auditRepository.findByIdempotencyKey(idempotencyKey)
+                .map(winningAudit -> {
+                    if (!winningAudit.getBooking().getReference().equals(reference)) {
+                        throw new IdempotencyKeyReusedException(idempotencyKey);
+                    }
+                    return RebookResult.replay(deserializeResponse(winningAudit.getResponsePayload()));
+                })
+                .orElseThrow(() -> new IllegalStateException("Idempotency conflict but no audit record found"));
+        }
     }
 
     private String serializeResponse(RebookResponse response) {
         try {
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException e) {
-            return "{}";
+            throw new IllegalStateException("Failed to serialize response for idempotency storage", e);
         }
     }
 

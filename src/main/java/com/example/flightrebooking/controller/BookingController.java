@@ -109,14 +109,19 @@ public class BookingController {
             return ResponseEntity.badRequest().body(problem);
         }
 
-        // Parse If-Match header (optional)
+        // Parse If-Match header (optional but must be valid if present)
         Long expectedVersion = null;
         if (ifMatchHeader != null && !ifMatchHeader.isBlank()) {
             String versionStr = ifMatchHeader.replace("\"", "");
             try {
                 expectedVersion = Long.parseLong(versionStr);
             } catch (NumberFormatException e) {
-                // Invalid format, ignore
+                ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                    HttpStatus.BAD_REQUEST,
+                    "If-Match header must be a valid ETag (quoted version number)"
+                );
+                problem.setTitle("Bad Request");
+                return ResponseEntity.badRequest().body(problem);
             }
         }
 

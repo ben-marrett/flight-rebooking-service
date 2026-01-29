@@ -63,11 +63,11 @@ public class Flight {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Flight flight)) return false;
-        return Objects.equals(flightNumber, flight.flightNumber);
+        return id != null && Objects.equals(id, flight.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(flightNumber);
+        return getClass().hashCode();
     }
 }

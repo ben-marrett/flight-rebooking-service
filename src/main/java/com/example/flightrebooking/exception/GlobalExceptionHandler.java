@@ -94,8 +94,8 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler({OptimisticLockConflictException.class, ETagMismatchException.class})
-    public ProblemDetail handleOptimisticLock(RuntimeException ex) {
+    @ExceptionHandler(ETagMismatchException.class)
+    public ProblemDetail handleETagMismatch(ETagMismatchException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
             HttpStatus.CONFLICT,
             ex.getMessage()
