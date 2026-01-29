@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -125,12 +126,23 @@ public class BookingController {
             }
         }
 
-        RebookResult result = rebookingService.rebook(
-            ref,
-            request.selectedFlightId(),
-            idempotencyKey,
-            expectedVersion
-        );
+        RebookResult result;
+        try {
+            result = rebookingService.rebook(
+                ref,
+                request.selectedFlightId(),
+                idempotencyKey,
+                expectedVersion
+            );
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent request with same idempotency key - retry will find existing audit
+            result = rebookingService.rebook(
+                ref,
+                request.selectedFlightId(),
+                idempotencyKey,
+                expectedVersion
+            );
+        }
 
         HttpStatus status = result.isReplay() ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status).body(result.response());

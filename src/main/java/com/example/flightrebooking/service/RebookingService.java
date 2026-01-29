@@ -17,7 +17,6 @@ import com.example.flightrebooking.repository.FlightRepository;
 import com.example.flightrebooking.repository.RebookingAuditRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -234,7 +233,9 @@ public class RebookingService {
             rebookedAt
         );
 
-        // Create audit record
+        // Create audit record - unique constraint on idempotency_key prevents duplicates
+        // If this fails due to concurrent request, DataIntegrityViolationException propagates
+        // and controller retries, which will find the existing audit and return replay
         String responseJson = serializeResponse(response);
         RebookingAudit audit = new RebookingAudit(
             UUID.randomUUID(),
@@ -245,22 +246,9 @@ public class RebookingService {
             RebookingOutcome.SUCCESS,
             responseJson
         );
+        auditRepository.save(audit);
 
-        try {
-            auditRepository.save(audit);
-            return RebookResult.newRebook(response);
-        } catch (DataIntegrityViolationException e) {
-            // Concurrent request with same idempotency key won the race
-            // Re-fetch and return stored response as replay
-            return auditRepository.findByIdempotencyKey(idempotencyKey)
-                .map(winningAudit -> {
-                    if (!winningAudit.getBooking().getReference().equals(reference)) {
-                        throw new IdempotencyKeyReusedException(idempotencyKey);
-                    }
-                    return RebookResult.replay(deserializeResponse(winningAudit.getResponsePayload()));
-                })
-                .orElseThrow(() -> new IllegalStateException("Idempotency conflict but no audit record found"));
-        }
+        return RebookResult.newRebook(response);
     }
 
     private String serializeResponse(RebookResponse response) {
