@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: flight-rebooking-service
+  datasource:
+    url: jdbc:postgresql://localhost:5433/flightrebooking
+    username: flight
+    password: flight
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

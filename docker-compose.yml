@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: flight-rebooking-postgres
+    environment:
+      POSTGRES_DB: flightrebooking
+      POSTGRES_USER: flight
+      POSTGRES_PASSWORD: flight
+    ports:
+      - "5433:5432"
+    volumes:
+      - flight-rebooking-data:/var/lib/postgresql/data
+
+volumes:
+  flight-rebooking-data:
