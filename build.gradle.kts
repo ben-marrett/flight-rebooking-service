@@ -36,9 +36,8 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    // Pass through Docker environment variables for Testcontainers (Colima, etc.)
-    System.getenv("DOCKER_HOST")?.let { environment("DOCKER_HOST", it) }
-    System.getenv("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE")?.let { environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", it) }
-    // Ryuk can cause issues with some Docker setups (Colima, rootless Docker)
-    environment("TESTCONTAINERS_RYUK_DISABLED", System.getenv("TESTCONTAINERS_RYUK_DISABLED") ?: "true")
+    // Disable Ryuk for Colima/rootless Docker compatibility
+    // Users with standard Docker Desktop can override with TESTCONTAINERS_RYUK_DISABLED=false
+    environment("TESTCONTAINERS_RYUK_DISABLED",
+        providers.environmentVariable("TESTCONTAINERS_RYUK_DISABLED").getOrElse("true"))
 }
