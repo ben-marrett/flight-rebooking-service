@@ -19,6 +19,16 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(BookingNotEligibleException.class)
+    public ProblemDetail handleBookingNotEligible(BookingNotEligibleException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.CONFLICT,
+            ex.getMessage()
+        );
+        problem.setTitle("Conflict");
+        return problem;
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         String message = ex.getConstraintViolations().stream()

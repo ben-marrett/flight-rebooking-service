@@ -1,9 +1,11 @@
 package com.example.flightrebooking.controller;
 
 import com.example.flightrebooking.dto.BookingResponse;
+import com.example.flightrebooking.dto.RebookingOptionsResponse;
 import com.example.flightrebooking.entity.Booking;
 import com.example.flightrebooking.exception.BookingNotFoundException;
 import com.example.flightrebooking.repository.BookingRepository;
+import com.example.flightrebooking.service.RebookingService;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -18,9 +20,11 @@ public class BookingController {
     private static final String BOOKING_REF_MESSAGE = "Booking reference must be 3-20 alphanumeric characters or hyphens";
 
     private final BookingRepository bookingRepository;
+    private final RebookingService rebookingService;
 
-    public BookingController(BookingRepository bookingRepository) {
+    public BookingController(BookingRepository bookingRepository, RebookingService rebookingService) {
         this.bookingRepository = bookingRepository;
+        this.rebookingService = rebookingService;
     }
 
     @GetMapping("/{ref}")
@@ -37,5 +41,14 @@ public class BookingController {
         return ResponseEntity.ok()
             .eTag("\"" + booking.getVersion() + "\"")
             .body(response);
+    }
+
+    @GetMapping("/{ref}/rebooking-options")
+    public RebookingOptionsResponse getRebookingOptions(
+            @PathVariable("ref")
+            @Pattern(regexp = BOOKING_REF_PATTERN, message = BOOKING_REF_MESSAGE)
+            String ref) {
+
+        return rebookingService.getRebookingOptions(ref);
     }
 }
